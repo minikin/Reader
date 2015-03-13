@@ -41,7 +41,7 @@ NSString * const  ReaderActionSheetItemTitleOpenIn   = @"Open In...";
 NSString * const  ReaderActionSheetItemTitleBookmark = @"Bookmark";
 NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
-@interface ReaderViewController () <UIScrollViewDelegate, UIGestureRecognizerDelegate, UIActionSheetDelegate, MFMailComposeViewControllerDelegate,
+@interface ReaderViewController () <UIScrollViewDelegate, UIGestureRecognizerDelegate,
 									ReaderMainPagebarDelegate, ReaderContentViewDelegate, ThumbsViewControllerDelegate>
 
 @property (strong, nonatomic, readwrite) MFMailComposeViewController *mailComposer;
@@ -946,20 +946,13 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 }
 
 -(void)pushActionBarButtonItem:(id)sender {
-    NSInteger page = [_document.pageNumber integerValue];
-    
-	BOOL bookmarked = [_document.bookmarks containsIndex:page];
-    
-    moreActionSheet = [[UIActionSheet alloc] initWithTitle:@"More"
-                                                  delegate:self
-                                         cancelButtonTitle:@"Dismiss"
-                                    destructiveButtonTitle:nil
-                                         otherButtonTitles:(bookmarked ? ReaderActionSheetItemTitleUnbookmark : ReaderActionSheetItemTitleBookmark),
-                                                            ReaderActionSheetItemTitleEmail,
-                                                            ReaderActionSheetItemTitleOpenIn,
-                                                            ReaderActionSheetItemTitlePrint, nil];
-    
-    [moreActionSheet showFromBarButtonItem:moreBarButtonItem animated:YES];
+
+	UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:@[_document.fileURL] applicationActivities:nil];
+	if ([activityController respondsToSelector:@selector(popoverPresentationController)]) {
+		activityController.popoverPresentationController.barButtonItem = sender;
+	}
+	[self presentViewController:activityController animated:YES completion:nil];
+
 }
 
 -(void)pushThumbsBarButtonItem:(id)sender {
@@ -973,96 +966,7 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
     
     UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:thumbsViewController];
     
-	[self presentViewController:navigationController animated:YES completion:NULL];
-}
-
--(void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
-    NSString *buttonTitle = [actionSheet buttonTitleAtIndex:buttonIndex];
-    
-    if ([buttonTitle isEqualToString:ReaderActionSheetItemTitleBookmark]) {
-        [self actionSheetBookmarkDocument];
-    } else if ([buttonTitle isEqualToString:ReaderActionSheetItemTitleUnbookmark]) {
-        [self actionSheetUnbookmarkDocument];
-    } else if ([buttonTitle isEqualToString:ReaderActionSheetItemTitleEmail]) {
-        [self actionSheetEmailDocument];
-    } else if ([buttonTitle isEqualToString:ReaderActionSheetItemTitleOpenIn]) {
-        [self actionSheetOpenDocument];
-    } else if ([buttonTitle isEqualToString:ReaderActionSheetItemTitlePrint]) {
-        [self actionSheetPrintDocument];
-    }
-}
-
--(void)actionSheetBookmarkDocument {
-    
-    [_document.bookmarks addIndex:[_document.pageNumber integerValue]];
-}
-
--(void)actionSheetUnbookmarkDocument {
-    [_document.bookmarks removeIndex:[_document.pageNumber integerValue]];
-}
-
--(void)actionSheetEmailDocument {
-	if ([MFMailComposeViewController canSendMail] == NO) return;
-    
-	unsigned long long fileSize = [_document.fileSize unsignedLongLongValue];
-    
-	if (fileSize < (unsigned long long)15728640) // Check attachment size limit (15MB)
-	{
-		NSURL *fileURL = _document.fileURL; NSString *fileName = _document.fileName; // Document
-        
-		NSData *attachment = [NSData dataWithContentsOfURL:fileURL options:(NSDataReadingMapped|NSDataReadingUncached) error:nil];
-        
-		if (attachment != nil) // Ensure that we have valid document file attachment data
-		{
-            _mailComposer = [MFMailComposeViewController new];
-            
-			[_mailComposer addAttachmentData:attachment mimeType:@"application/pdf" fileName:fileName];
-            
-			[_mailComposer setSubject:fileName]; // Use the document file name for the subject
-            
-			_mailComposer.modalTransitionStyle = UIModalTransitionStyleCoverVertical;
-			_mailComposer.modalPresentationStyle = UIModalPresentationFormSheet;
-            
-			_mailComposer.mailComposeDelegate = self; // Set the delegate
-            
-			[self presentViewController:_mailComposer animated:YES completion:NULL];
-		}
-	}
-}
-
--(void)actionSheetOpenDocument {
-    interactionController = [UIDocumentInteractionController interactionControllerWithURL:[_document fileURL]];
-    [interactionController presentOptionsMenuFromBarButtonItem:moreBarButtonItem animated:YES];
-}
-
--(void)actionSheetPrintDocument {
-    Class printInteractionController = NSClassFromString(@"UIPrintInteractionController");
-    
-	if ((printInteractionController != nil) && [printInteractionController isPrintingAvailable])
-	{
-		NSURL *fileURL = _document.fileURL; // Document file URL
-        
-		printInteraction = [printInteractionController sharedPrintController];
-        
-		if ([printInteractionController canPrintURL:fileURL] == YES) // Check first
-		{
-			UIPrintInfo *printInfo = [NSClassFromString(@"UIPrintInfo") printInfo];
-            
-			printInfo.duplex = UIPrintInfoDuplexLongEdge;
-			printInfo.outputType = UIPrintInfoOutputGeneral;
-			printInfo.jobName = _document.fileName;
-            
-			printInteraction.printInfo = printInfo;
-			printInteraction.printingItem = fileURL;
-			printInteraction.showsPageRange = YES;
-            
-            [printInteraction presentFromBarButtonItem:moreBarButtonItem animated:YES completionHandler:nil];
-		}
-    }
-}
-
--(void)mailComposeController:(MFMailComposeViewController *)controller didFinishWithResult:(MFMailComposeResult)result error:(NSError *)error {
-    [controller dismissViewControllerAnimated:YES completion:NULL];
+	[self.navigationController presentViewController:navigationController animated:YES completion:NULL];
 }
 
 #pragma mark ThumbsViewControllerDelegate methods
