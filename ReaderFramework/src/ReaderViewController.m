@@ -63,12 +63,16 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
     UIDocumentInteractionController *interactionController;
     
     NSInteger currentScrollViewPage;
+	NSInteger maxPage;
+	NSInteger minPage;
     
 	CGSize lastAppearSize;
 
 	NSDate *lastHideTime;
 
 	BOOL isVisible;
+
+	BOOL doublePage;
 }
 
 #pragma mark Constants
@@ -79,6 +83,9 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
 #define TOOLBAR_HEIGHT 44.0f
 #define PAGEBAR_HEIGHT 48.0f
+
+#define LANDSCAPE_DOUBLE_PAGE true
+#define LANDSCAPE_SINGLE_FIRST_PAGE true
 
 #define TAP_AREA_SIZE 48.0f
 
@@ -119,6 +126,51 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 	theScrollView.contentSize = CGSizeMake(contentWidth, contentHeight);
 }
 
+- (void)handleLandscapeDoublePage {
+	NSInteger futureCurrentPage = _currentPage;
+
+	if (futureCurrentPage == 0) {
+		return;
+	}
+
+	UIInterfaceOrientation orientation= [[UIApplication sharedApplication] statusBarOrientation];
+	maxPage = [_document.pageCount integerValue];
+
+	doublePage = false;
+
+	if(UIInterfaceOrientationIsLandscape(orientation)){
+		doublePage = true;
+		float maximumPage = maxPage;
+		float nextCurrentPage = (_currentPage / 2.0);
+
+
+		if (LANDSCAPE_SINGLE_FIRST_PAGE) {
+			nextCurrentPage = floor(nextCurrentPage) + 1;
+			maximumPage = ((maximumPage - 1) / 2) + 1;
+		} else {
+			maximumPage = (maximumPage / 2);
+		}
+
+		_currentPage = (int) ceil(nextCurrentPage);
+		maxPage = (int) ceil(maximumPage);
+	} else {
+		futureCurrentPage = (_currentPage - 1) * 2;
+	}
+
+	//Clear cached pages
+	for (NSNumber *key in [contentViews allKeys]) // Enumerate content views
+	{
+		ReaderContentView *contentView = [contentViews objectForKey:key];
+
+		[contentView removeFromSuperview]; [contentViews removeObjectForKey:key];
+	}
+
+
+	[self updateScrollViewContentViews];
+	//Force recompute view
+	[self showDocumentPage:futureCurrentPage forceRedraw:true];
+}
+
 - (void)updateScrollViewContentViews
 {
 	[self updateScrollViewContentSize]; // Update the content size
@@ -157,14 +209,31 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
 - (void)showDocumentPage:(NSInteger)page
 {
-	if (page != _currentPage) // Only if different
+	[self showDocumentPage:page forceRedraw:false];
+}
+
+- (void)showDocumentPage:(NSInteger)page forceRedraw:(bool)forceRedraw
+{
+	NSInteger renderPage = page;
+
+	if(doublePage){
+		float nextRenderPage;
+		//If double renderPage is not the same as page
+		nextRenderPage = (page / 2.0);
+		if (LANDSCAPE_SINGLE_FIRST_PAGE) {
+			nextRenderPage = floor(nextRenderPage) + 1;
+		} else if (page == 1) {
+			nextRenderPage = 1;
+		}
+
+		renderPage = (int) ceil(nextRenderPage);
+	}
+
+	NSInteger minValue; NSInteger maxValue;
+
+	if (renderPage != _currentPage || forceRedraw) // Only if on different page or if force redraw
 	{
-		NSInteger minValue; NSInteger maxValue;
-		NSInteger maxPage = [_document.pageCount integerValue];
-		NSInteger minPage = 1;
-
-		if ((page < minPage) || (page > maxPage)) return;
-
+		if ((renderPage < minPage) || (renderPage > maxPage)) return;
 		if (maxPage <= PAGING_VIEWS) // Few pages
 		{
 			minValue = minPage;
@@ -172,14 +241,14 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 		}
 		else // Handle more pages
 		{
-			minValue = (page - 1);
-			maxValue = (page + 1);
+			minValue = (renderPage - 1);
+			maxValue = (renderPage + 1);
 
 			if (minValue < minPage)
-				{minValue++; maxValue++;}
+			{minValue++; maxValue++;}
 			else
 				if (maxValue > maxPage)
-					{minValue--; maxValue--;}
+				{minValue--; maxValue--;}
 		}
 
 		NSMutableIndexSet *newPageSet = [NSMutableIndexSet new];
@@ -190,7 +259,34 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
 		for (NSInteger number = minValue; number <= maxValue; number++)
 		{
-			NSNumber *key = [NSNumber numberWithInteger:number]; // # key
+
+
+			NSInteger renderPage = number;
+			BOOL renderDoublePage = false;
+			NSInteger lastPageEven;
+
+			if (doublePage) {
+				if (!LANDSCAPE_SINGLE_FIRST_PAGE) {
+					lastPageEven = [_document.pageCount integerValue];
+					renderDoublePage = true;
+					if (number > 1) {
+						renderPage = (renderPage) * 2 - 1;
+					}
+				} else {
+					lastPageEven = [_document.pageCount integerValue] - 1;
+					if (number > 1) {
+						renderPage = (renderPage - 1) * 2;
+						renderDoublePage = true;
+					}
+				}
+
+				//Handle single last page
+				if (number == maxPage && lastPageEven % 2 == 1) {
+					renderDoublePage = false;
+				}
+			}
+
+			NSNumber *key = [NSNumber numberWithInteger:renderPage]; // # key
 
 			ReaderContentView *contentView = [contentViews objectForKey:key];
 
@@ -198,7 +294,7 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 			{
 				NSURL *fileURL = _document.fileURL; NSString *phrase = _document.password; // Document properties
 
-				contentView = [[ReaderContentView alloc] initWithFrame:viewRect fileURL:fileURL page:number password:phrase];
+				contentView = [[ReaderContentView alloc] initWithFrame:viewRect fileURL:fileURL page:renderPage password:phrase doublePage:renderDoublePage];
 
 				[theScrollView addSubview:contentView]; [contentViews setObject:contentView forKey:key];
 
@@ -283,7 +379,7 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
 		[mainPagebar updatePagebar]; // Update the pagebar display
 
-		_currentPage = page; // Track current page number
+		_currentPage = renderPage; // Track current page number
 	}
 }
 
@@ -381,6 +477,8 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 	[singleTapOne requireGestureRecognizerToFail:doubleTapOne]; // Single tap requires double tap to fail
 
 	contentViews = [NSMutableDictionary new]; lastHideTime = [NSDate date];
+
+	minPage = 1; maxPage = [_document.pageCount integerValue];
 }
 
 -(void)setUpBarButtonItems {
@@ -502,7 +600,11 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 {
 	if (isVisible == NO) return; // iOS present modal bodge
 
-	[self updateScrollViewContentViews]; // Update content views
+	if (LANDSCAPE_DOUBLE_PAGE) {
+		[self handleLandscapeDoublePage];
+	} else {
+		[self updateScrollViewContentViews];
+	}
 
 	lastAppearSize = CGSizeZero; // Reset view size tracking
 }
