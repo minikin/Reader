@@ -516,6 +516,23 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
 		lastAppearSize = CGSizeZero; // Reset view size tracking
 	}
+
+	if (LANDSCAPE_DOUBLE_PAGE) {
+		UIInterfaceOrientation orientation= [[UIApplication sharedApplication] statusBarOrientation];
+		maxPage = [_document.pageCount integerValue];
+
+		doublePage = false;
+
+		if(UIInterfaceOrientationIsLandscape(orientation)){
+			doublePage = true;
+
+			if (LANDSCAPE_SINGLE_FIRST_PAGE) {
+				maxPage = ceil(((maxPage - 1) / 2.0) + 1);
+			} else {
+				maxPage = ceil((maxPage / 2.0));
+			}
+		}
+	}
 }
 
 - (void)viewDidAppear:(BOOL)animated
