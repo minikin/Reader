@@ -331,14 +331,14 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
 		if (maxPage >= PAGING_VIEWS)
 		{
-			if (page == maxPage)
+			if (renderPage == maxPage)
 				contentOffset.x = viewWidthX2;
 			else
-				if (page != minPage)
+				if (renderPage != minPage)
 					contentOffset.x = viewWidthX1;
 		}
 		else
-			if (page == (PAGING_VIEWS - 1))
+			if (renderPage == (PAGING_VIEWS - 1))
 				contentOffset.x = viewWidthX1;
 
 		if (CGPointEqualToPoint(theScrollView.contentOffset, contentOffset) == false)
