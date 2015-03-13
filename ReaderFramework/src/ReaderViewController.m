@@ -41,7 +41,7 @@ NSString * const  ReaderActionSheetItemTitleOpenIn   = @"Open In...";
 NSString * const  ReaderActionSheetItemTitleBookmark = @"Bookmark";
 NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 
-@interface ReaderViewController () <UIScrollViewDelegate, UIGestureRecognizerDelegate,
+@interface ReaderViewController () <UIScrollViewDelegate, UIGestureRecognizerDelegate, UIActionSheetDelegate, MFMailComposeViewControllerDelegate,
 									ReaderMainPagebarDelegate, ReaderContentViewDelegate, ThumbsViewControllerDelegate>
 
 @property (strong, nonatomic, readwrite) MFMailComposeViewController *mailComposer;
@@ -53,6 +53,7 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
     UIBarButtonItem *doneBarButtonItem;
     UIBarButtonItem *thumbsBarButton;
     UIBarButtonItem *moreBarButtonItem;
+	UIBarButtonItem *printBarButtonItem;
     
 	ReaderMainPagebar *mainPagebar;
 
@@ -491,16 +492,20 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
     }
     
     thumbsBarButton = [[UIBarButtonItem alloc] initWithImage:[UIImage imageNamed:@"Reader.bundle/Thumbs"]
-                                                                           style:UIBarButtonItemStylePlain
+																		  style:UIBarButtonItemStylePlain
                                                                           target:self
                                                                           action:@selector(pushThumbsBarButtonItem:)];
     
-    
+	printBarButtonItem = [[UIBarButtonItem alloc] initWithImage:[UIImage imageNamed:@"Reader.bundle/Printer"]
+															          style:UIBarButtonItemStylePlain
+																	  target:self
+																	  action:@selector(pushPrintBarButtonItem:)];
+
     moreBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction
                                                                       target:self
                                                                       action:@selector(pushActionBarButtonItem:)];
     
-    [self.remoteNavigationItem setRightBarButtonItems:@[moreBarButtonItem, thumbsBarButton]];
+    [self.remoteNavigationItem setRightBarButtonItems:@[printBarButtonItem, moreBarButtonItem, thumbsBarButton]];
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -946,17 +951,38 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 }
 
 -(void)pushActionBarButtonItem:(id)sender {
+	interactionController = [UIDocumentInteractionController interactionControllerWithURL:[_document fileURL]];
+	[interactionController presentOpenInMenuFromBarButtonItem:moreBarButtonItem animated:YES];
+}
 
-	UIActivityViewController *activityController = [[UIActivityViewController alloc] initWithActivityItems:@[_document.fileURL] applicationActivities:nil];
-	if ([activityController respondsToSelector:@selector(popoverPresentationController)]) {
-		activityController.popoverPresentationController.barButtonItem = sender;
+-(void)pushPrintBarButtonItem:(id)sender {
+	Class printInteractionController = NSClassFromString(@"UIPrintInteractionController");
+
+	if ((printInteractionController != nil) && [printInteractionController isPrintingAvailable])
+	{
+		NSURL *fileURL = _document.fileURL; // Document file URL
+
+		printInteraction = [printInteractionController sharedPrintController];
+
+		if ([printInteractionController canPrintURL:fileURL] == YES) // Check first
+		{
+			UIPrintInfo *printInfo = [NSClassFromString(@"UIPrintInfo") printInfo];
+
+			printInfo.duplex = UIPrintInfoDuplexLongEdge;
+			printInfo.outputType = UIPrintInfoOutputGeneral;
+			printInfo.jobName = _document.fileName;
+
+			printInteraction.printInfo = printInfo;
+			printInteraction.printingItem = fileURL;
+			printInteraction.showsPageRange = YES;
+
+			[printInteraction presentFromBarButtonItem:moreBarButtonItem animated:YES completionHandler:nil];
+		}
 	}
-	[self presentViewController:activityController animated:YES completion:nil];
-
 }
 
 -(void)pushThumbsBarButtonItem:(id)sender {
-    
+
 	ThumbsViewController *thumbsViewController = [[ThumbsViewController alloc] initWithReaderDocument:_document];
     
 	thumbsViewController.delegate = self; thumbsViewController.title = self.title;
@@ -966,7 +992,7 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
     
     UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:thumbsViewController];
     
-	[self.navigationController presentViewController:navigationController animated:YES completion:NULL];
+	[self presentViewController:navigationController animated:YES completion:NULL];
 }
 
 #pragma mark ThumbsViewControllerDelegate methods
