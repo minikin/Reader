@@ -156,6 +156,9 @@ NSString * const  ReaderActionSheetItemTitleUnbookmark = @"Unbookmark";
 		maxPage = (int) ceil(maximumPage);
 	} else {
 		futureCurrentPage = (_currentPage - 1) * 2;
+		if (futureCurrentPage < 1) {
+			futureCurrentPage = 1;
+		}
 	}
 
 	//Clear cached pages
